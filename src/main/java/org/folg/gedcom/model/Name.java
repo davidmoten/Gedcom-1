@@ -40,12 +40,12 @@ public class Name extends SourceCitationContainer {
    private String _marrnm = null;
    private String marrnmTag = null;
 
-   private void appendValue(StringBuilder buf, String value) {
-      if (value != null) {
+   private void appendNamePiece(StringBuilder buf, String value) {
+      if (value != null && !value.trim().isEmpty()) {
          if (buf.length() > 0) {
             buf.append(' ');
          }
-         buf.append(value);
+         buf.append(value.trim());
       }
    }
 
@@ -55,11 +55,11 @@ public class Name extends SourceCitationContainer {
       }
       else {
          StringBuilder buf = new StringBuilder();
-         appendValue(buf, npfx);
-         appendValue(buf, givn);
-         appendValue(buf, spfx);
-         appendValue(buf, surn);
-         appendValue(buf, nsfx);
+         appendNamePiece(buf, npfx);
+         appendNamePiece(buf, givn);
+         appendNamePiece(buf, spfx);
+         appendNamePiece(buf, surn);
+         appendNamePiece(buf, nsfx);
          return buf.toString();
       }
    }

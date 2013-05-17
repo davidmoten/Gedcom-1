@@ -1,5 +1,6 @@
 package org.gedml;
 
+import java.net.MalformedURLException;
 import java.util.*;
 import java.io.*;
 import java.net.URL;
@@ -17,9 +18,10 @@ import org.xml.sax.helpers.*;
  *
  * @author mhkay@iclway.co.uk
  * @version 22 March 2006 - revised by lmonson.com to support string inlining, a few sax feature settings and additional encodings
- * Also revised in 2007 by Nathan Powell and revised in 2011 by Dallan Quass
+ * Also revised in 2007 by Nathan Powell and revised in 2011 and 2013 by Dallan Quass
  */
 public class GedcomParser implements XMLReader, Locator {
+   private static final int BUFSIZE = 1024*1024;
    private static final List<String> ACCEPTED_TRUE_SAX_FEATURES = Arrays.asList(
            "http://xml.org/sax/features/namespace-prefixes",
            // OK to support, since non are produced from gedcom
@@ -30,7 +32,7 @@ public class GedcomParser implements XMLReader, Locator {
            "http://xml.org/sax/features/string-interning"
    );
    private static final List<String> EXPECTED_CHAR_ENCODINGS = Arrays.asList(
-           "ANSEL","ASCII","Cp850","Cp874","Cp1251","Cp1252","Cp1254","UTF-8","x-MacRoman","UTF-16","UnicodeBigUnmarked"
+           "ANSEL","ASCII","Cp850","Cp874","Cp1250","Cp1251","Cp1252","Cp1254","UTF-8","x-MacRoman","UTF-16","UnicodeBigUnmarked"
    );
 
    private ContentHandler contentHandler;
@@ -38,7 +40,6 @@ public class GedcomParser implements XMLReader, Locator {
    private AttributesImpl emptyAttList = new AttributesImpl();
    private AttributesImpl attList = new AttributesImpl();
    private EntityResolver entityResolver = null;
-   private String systemId;
    private int lineNr;
 
    /**
@@ -143,8 +144,6 @@ public class GedcomParser implements XMLReader, Locator {
             break; // got what we need
          }
       }
-      in.close();
-
       return getCorrectedCharsetName(generatorName, encoding, version);
    }
 
@@ -185,9 +184,12 @@ public class GedcomParser implements XMLReader, Locator {
       else if ("WINDOWS-874".equals(encoding)) {
          encoding = "Cp874";
       }
-      else if ("WINDOWS-1251".equals(encoding)) {
-         encoding = "Cp1251";
-      }
+		else if ("WINDOWS-1251".equals(encoding)) {
+			encoding = "Cp1251";
+		}
+		else if ("WINDOWS-1250".equals(encoding)) {
+			encoding = "Cp1250";
+		}
       else if ("WINDOWS-1254".equals(encoding)) {
          encoding = "Cp1254";
       }
@@ -207,26 +209,26 @@ public class GedcomParser implements XMLReader, Locator {
       return encoding;
    }
 
-   private BufferedReader getBufferedReader(String systemId) throws IOException, SAXException {
-      InputStream in = (new URL(systemId)).openStream();
-      String charEncoding = readCorrectedCharsetName(in);
-      in.close();
+   private BufferedReader getBufferedReader(InputStream in) throws IOException, SAXException {
+      BufferedInputStream bufIn = new BufferedInputStream(in);
+      bufIn.mark(BUFSIZE);
+      String charEncoding = readCorrectedCharsetName(bufIn);
+      bufIn.reset();
 
       if (charEncoding.length() == 0) {
          // Let's try again with a UTF-16 reader.
-         BufferedReader br = new BufferedReader(new InputStreamReader((new URL(systemId)).openStream(), "UTF-16"));
-         charEncoding = readCorrectedCharsetName(br);
-         br.close();
+         charEncoding = readCorrectedCharsetName(new BufferedReader(new InputStreamReader(bufIn, "UTF-16")));
+         bufIn.reset();
          if (charEncoding.equals("UTF-16")) {
             // skip over junk at the beginning of the file
-            InputStreamReader reader = new InputStreamReader((new URL(systemId)).openStream(), "UTF-16");
+            InputStreamReader reader = new InputStreamReader(bufIn, "UTF-16");
             int cnt = 0;
             int c;
             while ((c = reader.read()) != '0' && c != -1) {
                cnt++;
             }
-            reader.close();
-            reader = new InputStreamReader((new URL(systemId)).openStream(), "UTF-16");
+            bufIn.reset();
+            reader = new InputStreamReader(bufIn, "UTF-16");
             for (int i = 0; i < cnt; i++) {
                reader.read();
             }
@@ -240,24 +242,22 @@ public class GedcomParser implements XMLReader, Locator {
 
       if (EXPECTED_CHAR_ENCODINGS.contains(charEncoding)) {
          // skip over junk at the beginning of the file
-         in = (new URL(systemId)).openStream();
          int cnt = 0;
          int c;
-         while ((c = in.read()) != '0' && c != -1) {
+         while ((c = bufIn.read()) != '0' && c != -1) {
             cnt++;
          }
-         in.close();
-         in = (new URL(systemId)).openStream();
+         bufIn.reset();
          for (int i = 0; i < cnt; i++) {
-            in.read();
+            bufIn.read();
          }
 
          InputStreamReader reader;
          if (charEncoding.equals("ANSEL")) {
-            reader = new AnselInputStreamReader(in);
+            reader = new AnselInputStreamReader(bufIn);
          }
          else {
-            reader = new InputStreamReader(in, charEncoding);
+            reader = new InputStreamReader(bufIn, charEncoding);
          }
          return new BufferedReader(reader);
       }
@@ -266,17 +266,42 @@ public class GedcomParser implements XMLReader, Locator {
    }
 
    /**
-    * Parse input from the supplied InputSource
+    * Parse input from the supplied file
     */
-   public void parse(InputSource source) throws IOException, SAXParseException {
-      parse(source.getSystemId());
+   public void parse(File file) throws IOException, SAXParseException {
+      InputStream in = null;
+      try {
+         in = new FileInputStream(file);
+         parse(in);
+      }
+      finally {
+         if (in != null) {
+            in.close();
+         }
+      }
+   }
+
+   public void parse(InputSource inputSource) throws IOException, SAXParseException {
+      parse(inputSource.getSystemId());
+   }
+
+   public void parse(String systemId) throws IOException, SAXParseException {
+      InputStream in = null;
+      try {
+         in = new URL(systemId).openStream();
+         parse(in);
+      }
+      finally {
+         if (in != null) {
+            in.close();
+         }
+      }
    }
 
    /**
-    * Parse input from the supplied systemId
+    * Parse input from the supplied input stream
     */
-   public void parse(String systemId) throws IOException, SAXParseException {
-      this.systemId = systemId;
+   public void parse(InputStream in) throws IOException, SAXParseException {
       String line;
       int thisLevel;
       int prevLevel = -1;
@@ -288,7 +313,7 @@ public class GedcomParser implements XMLReader, Locator {
       StringBuilder buf = new StringBuilder();
 
       try {
-         reader = getBufferedReader(systemId);
+         reader = getBufferedReader(in);
          contentHandler.setDocumentLocator(this);
          contentHandler.startDocument();
          contentHandler.startElement("", "GED", "GED", emptyAttList);
@@ -382,11 +407,6 @@ public class GedcomParser implements XMLReader, Locator {
          }
          throw err;
       }
-      finally {
-         if (reader != null) {
-            reader.close();
-         }
-      }
    }
 
    /**
@@ -431,7 +451,7 @@ public class GedcomParser implements XMLReader, Locator {
     * Get the system ID
     */
    public String getSystemId() {
-      return systemId;
+      return "";
    }
 
    /**

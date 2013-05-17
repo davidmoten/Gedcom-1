@@ -21,7 +21,9 @@ import org.gedml.GedcomParser;
 import org.xml.sax.*;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -1504,10 +1506,23 @@ public class ModelParser implements ContentHandler, org.xml.sax.ErrorHandler {
    }
 
    public Gedcom parseGedcom(File gedcomFile) throws SAXParseException, IOException {
+      InputStream in = null;
+      try {
+         in = new FileInputStream(gedcomFile);
+         return parseGedcom(in);
+      }
+      finally {
+         if (in != null) {
+            in.close();
+         }
+      }
+   }
+
+   public Gedcom parseGedcom(InputStream gedcomStream) throws SAXParseException, IOException {
       GedcomParser parser = new GedcomParser();
       parser.setContentHandler(this);
       parser.setErrorHandler(this);
-      parser.parse(gedcomFile.toURI().toString());
+      parser.parse(gedcomStream);
       return gedcom;
    }
 }
