@@ -94,23 +94,28 @@ You'll need maven. `mvn install` creates the jar file.
 Tools
 -----
 
-* _Gedcom2Json.java_ converts a GEDCOM to a JSON file using either the model parser or the tree parser.
+* _Gedcom2Json_ converts a GEDCOM to a JSON file using either the model parser or the tree parser.
 
-* _Gedcom2Gedcom.java_ round-trips a GEDCOM file or a directory of GEDCOM files from GEDCOM, to the
+* _Gedcom2Gedcom_ round-trips a GEDCOM file or a directory of GEDCOM files from GEDCOM, to the
 object model, and back to GEDCOM (in a different directory).
 
-* _CompareGedcom2Gedcom.java_ does the thing as Gedcom2Gedcom, and then compares the resulting GEDCOM
+* _CompareGedcom2Gedcom_ does the thing as Gedcom2Gedcom, and then compares the resulting GEDCOM
 to the original, reporting any differences.
 
-* _GedcomAnalyzer.java_ parses a GEDCOM file or a directory of GEDCOM files and reports tags that are
+* _GedcomAnalyzer_ parses a GEDCOM file or a directory of GEDCOM files and reports tags that are
 stored as extensions and errors.
 
-* _PlaceWriter.java_ extracts all places from a directory of GEDCOM files, as an example of walking
+* _PlaceWriter_ extracts all places from a directory of GEDCOM files, as an example of walking
 the model using a Visitor pattern. This function was written in just a few lines due to the other
 classes in this project.
 
 The tools can be run using
 `mvn exec:java -Dexec.mainClass=org.folg.gedcom.tools.<tool name> -Dexec.args="<args>"`
+
+For example, to convert a gedcom file `mytree.ged` to a json file `mytree.json` you would run.
+`mvn exec:java -Dexec.mainClass=org.folg.gedcom.tools.Gedcom2Json -Dexec.args="-i mytree.ged -o mytree.json"`
+
+The list of arguments for a tool is displayed if you execute the tool without any arguments.
 
 Support
 -------
