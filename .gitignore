@@ -6,3 +6,7 @@ target
 *.iml
 nbproject
 out
+.settings
+.classpath
+.project
+
